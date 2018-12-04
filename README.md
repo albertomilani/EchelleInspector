@@ -1,0 +1,2 @@
+# EchelleInspector
+Echelle spectra viewer
