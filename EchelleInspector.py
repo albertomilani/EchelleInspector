@@ -12,6 +12,7 @@ matplotlib.use('TkAgg')
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 import numpy as np
+import re
 
 class GUI:
     def __init__(self, master):
@@ -47,21 +48,39 @@ class GUI:
         # Permit only fits files
         file_types = (("FITS","*.FITS"), ("FIT","*.FIT"), ("fits","*.fits"), ("fit","*.fit"))
         self.filename = tkFileDialog.askopenfilename(initialdir = ".",title = "Select file",filetypes = file_types)
-        self.f = pyfits.open(self.filename)
+        if self.filename:
+            self.f = None
+            self.f = pyfits.open(self.filename)
+            self.f_wl = self.parseWavelenght(self.f[0].header)
+            self.plotSpectrum(21)
 
-        self.plotSpectrum()
-
-    def plotSpectrum(self):
-        scidata = self.f[0].data
+    def plotSpectrum(self, order):
+        aperture = self.f_wl[order]['aperture']
+        scidata = self.f[0].data[aperture]
+        num_pix = len(scidata)
+        wl_step = self.f_wl[order]['wl_step']
+        wl_start = self.f_wl[order]['wl_start']
+        wl_end = wl_start + (num_pix-1)*wl_step
 
         f = Figure(figsize=(8, 6), dpi=100)
-        t = np.arange(0.0, len(scidata[0]), 1)
-        f.add_subplot(111).plot(t, scidata[0])
+        t = np.arange(wl_start, wl_end, wl_step)
+        f.add_subplot(111).plot(t, scidata)
 
         canvas = FigureCanvasTkAgg(f, master=self.master)
         canvas.draw()
         canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
 
+    def parseWavelenght(self, header):
+        string = ''
+        for k in header:
+            if k[0:4] == 'WAT2':
+                string += header[k]
+        links = re.findall('spec\d+\s=\s\"([\.\s\d]+)\"', string)
+        sp_orders_wl = {}
+        for r in links:
+            data = r.split(' ')
+            sp_orders_wl[int(data[1])] = {'aperture': int(data[0]), 'wl_start': float(data[3]), 'wl_step': float(data[4])}
+        return sp_orders_wl
 
     def fitsShowHeader(self):
         # show header in new window
